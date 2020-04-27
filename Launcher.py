@@ -7,7 +7,5 @@ init()
 
 while True:
     payload = getrandpayload()
-    payload = json.loads(payload)
-    print(len(payload))
     pub(payload)
     time.sleep(2)

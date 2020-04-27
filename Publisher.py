@@ -6,10 +6,10 @@ def pub(message):
 
     # Set the connection parameters to connect to rabbit-server1 on port 5672
     # on the / virtual host using the username "guest" and password "guest"
-    username = ''
-    password = ''
-    hostname = ''
-    virtualhost = ''
+    username = mq_cred['username']
+    password = mq_cred['password']
+    hostname = mq_cred['hostname']
+    virtualhost = mq_cred['virtualhost']
 
     credentials = pika.PlainCredentials(username, password)
     parameters = pika.ConnectionParameters(hostname,
@@ -17,8 +17,8 @@ def pub(message):
                                            virtualhost,
                                            credentials)
 
-    #connection = pika.BlockingConnection(parameters)
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+    connection = pika.BlockingConnection(parameters)
+
 
     channel = connection.channel()
 
