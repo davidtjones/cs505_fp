@@ -1,11 +1,12 @@
 import pandas as pd
-import code
 from neo4j import GraphDatabase
 from tqdm import tqdm, trange
-from config import neo4j_cred as cred
+
 
 # Define prepared statements
-
+def test():
+    print("Testing 1, 2, 3")
+    
 def detach_delete_all(tx):
     # this particular function deletes the entire graph, use with care!
     tx.run("MATCH(n) DETACH DELETE n")
@@ -17,15 +18,19 @@ def detach_delete_patients(tx):
 
 def delete_patient_hospital_rel(tx, data):
     # this removes any RECVS_CARE_AT relationship from a patient
-    tx.run("MATCH(p:Patient{mrn:$mrn})-[r:RECVS_CARE_AT]->() "
-           "DELETE r")  
+    tx.run("MATCH(p:Patient{mrn:$mrn})-[r:RECVS_CARE_AT]->(h:Hospital) "
+           "SET h.free_beds = h.free_beds + 1 "
+           "DELETE r",
+           mrn=data.mrn)  
     
     
 def add_zip(tx, zip1):
     # check if zip1 and zip2 are in database
-    tx.run("MERGE(z1:Zip {zipcode:$myzip1, alert_status:$zero}) "
+    tx.run("MERGE(z1:Zip {zipcode:$myzip1, " 
+           "alert_status:0}, "
+           "t1:0, t2:0) "
            "RETURN z1",
-           myzip1=zip1,zero=0)
+           myzip1=zip1)
 
     
 def add_zip_zip_rel(tx, zip1, zip2, distance):
@@ -56,11 +61,26 @@ def add_hospital(tx, data):
            "trauma:$trauma,"
            "helipad:$helipad}) "
            "RETURN h1",
-           id=data.ID, name=data.NAME, city=data.CITY, state=data.STATE, zipcode=data.ZIP,
-           type=data.TYPE, beds=int(data.BEDS), zero=0, countyfips=data.COUNTYFIPS,
-           county=data.COUNTY, latitude=data.LATITUDE, longitude=data.LONGITUDE,
-           naics_code=data.NAICS_CODE, website=data.WEBSITE, owner=data.OWNER,
-           trauma=data.TRAUMA, helipad=data.HELIPAD)
+           id=data.ID, name=data.NAME, city=data.CITY,
+           state=data.STATE, zipcode=data.ZIP, type=data.TYPE,
+           beds=int(data.BEDS), zero=0, countyfips=data.COUNTYFIPS,
+           county=data.COUNTY, latitude=data.LATITUDE,
+           longitude=data.LONGITUDE, naics_code=data.NAICS_CODE,
+           website=data.WEBSITE, owner=data.OWNER, trauma=data.TRAUMA,
+           helipad=data.HELIPAD)
+
+def get_hospital_patient_numbers(tx, data):
+    records = tx.run("MATCH(h:Hospital) "
+                     "WHERE h.id = $id "
+                     "RETURN h.beds, h.free_beds, h.zipcode",
+                     id=data.id)
+    return records
+
+def get_patient_hospital_id(tx, data):
+    records = tx.run("MATCH(p:Patient{mrn:$mrn})-[r:RECVS_CARE_AT]->(h:Hospital) "
+                     "RETURN h.id",
+                     mrn=mrn)
+    return records
     
 def add_zip_hospital_rel(tx, data):
     tx.run("MATCH(z1:Zip{zipcode:$myzip1}),(h1:Hospital{id:$myhid1}) "
@@ -74,7 +94,26 @@ def get_patient(tx, data):
            "RETURN p1",
            mrn=data.mrn)
     return records
-                
+
+def get_patient_records(tx,data):
+    records = tx.run("MATCH(p1:Patient{mrn:$mrn}) "
+                     "RETURN p1.mrn, p1.patient_status_code",
+                     mrn=data.mrn)
+    return records
+
+
+def get_patient_status_code(tx, data):
+    records = tx.run("MATCH(p:Patient) "
+                     "WHERE p.mrn = $mrn "
+                     "RETURN p.patient_status_code",
+                     mrn=data.mrn)
+    return records
+
+def get_patient_hospital_id(tx, data):
+    records = tx.run("MATCH(p:Patient{mrn:$mrn})-[:RECVS_CARE_AT]->(h:Hospital) "
+                     "RETURN h.id",
+                     mrn=data.mrn)
+    return records
     
 def add_patient(tx, data):
     tx.run("CREATE(p1:Patient{"
@@ -82,7 +121,8 @@ def add_patient(tx, data):
            "last_name:$lname,"
            "mrn:$mrn,"
            "zip_code:$zipcode,"
-           "patient_status_code:$patient_status_code}) "
+           "patient_status_code:$patient_status_code,"
+           "check_in_time:timestamp()}) "
            "RETURN p1",
            fname=data.first_name,
            lname=data.last_name,
@@ -133,122 +173,90 @@ def find_path_zip2zip(tx, zip1, zip2):
 
     return records
 
-    
 
-def find_patient_closest_hospital_id(tx, data):
-    # need to also confirm that hospital isn't filled!
-    records = tx.run("MATCH(p1:Patient{mrn:$mrn}),"
-                     "(h1:Hospital),p=shortestPath((p1)-[*]-(h1)) "
-                     "RETURN h1.id "
-                     "ORDER BY length(p) "
-                     "LIMIT 1",
-                     mrn=data.mrn)
+def add_patient_hospital_rel(tx, data):
+    # when patient status code indicates that they need to report to a hospital
+    tx.run("MATCH (p1:Patient{mrn:$mrn})-[:LIVES_IN]-(:Zip)-[r:IS_NEIGHBOR*1..60]-(:Zip)-[:HAS_HOSPITAL]->(h1:Hospital) "
+           "WHERE h1.free_beds <= h1.beds AND h1.free_beds > 0 "
+           "WITH p1, h1 ORDER BY length(r) LIMIT 1 "
+           "MERGE(p1)-[c:RECVS_CARE_AT]-(h1) "
+           "SET h1.free_beds = h1.free_beds-1 "
+           "RETURN c",
+           mrn=data.mrn
+           )
+
+
+def add_crit_patient_hospital_rel(tx, data):
+    tx.run(
+        "MATCH (p1:Patient{first_name:$mrn})-[:LIVES_IN]-(:Zip)-[r:IS_NEIGHBOR*1..60]-(:Zip)-[:HAS_HOSPITAL]->(h1:Hospital) "
+        "WHERE h1.free_beds <= h1.beds AND h1.free_beds > 0 AND h1.trauma CONTAINS \"LEVEL I\" "
+        "WITH p1, h1 ORDER BY length(r) LIMIT 1 "
+        "MERGE(p1)-[c:RECVS_CARE_AT]-(h1) "
+        "SET h1.free_beds = h1.free_beds-1 "
+        "RETURN c",
+           mrn=data.mrn)
+
+    
+def set_hospital_beds_max(tx):
+    tx.run("MATCH(h1:Hospital) "
+           "SET h1.free_beds = h1.beds "
+           "RETURN h1")
+
+
+def get_statewide_positive_test_count(tx):
+    records = tx.run(
+        "MATCH(p1:Patient) "
+        "WHERE p1.patient_status_code = \"3\" or p1.patient_status_code = \"5\" or p1.patient_status_code = \"6\" "
+        "RETURN count(p1)")
+
     return records
 
-def reset_graph(driver):
-    with driver.session() as session:
-        session.write_transaction(detach_delete_all)
 
-def reset_patients(driver):
-    with driver.session() as session:
-        session.write_transaction(detach_delete_patients)
-        
-def test_all_connected(driver, distance_df):
-    # Test that there are no unconnected subgraphs in the database
-    # - We can do this by checking that every zipcode-node has at least one path to a
-    #   single hospital
-    # - Since each hospital is connected to a zipcode, if all nodes connect to one hospital,
-    #   then all nodes should connect to all hospitals
-    # - This is useful to confirm a graph is safe to use but also to find a rough minimum
-    #   distance threshold.
-    print("Checking that the entire graph is connected...")
-    zipcodes = distance_df["zip_from"].unique()
-    with driver.session() as session:
-        # remove unconnected labels from connected nodes
-        for i in trange(len(zipcodes)):
-            zipcode = zipcodes[i]
-            records = session.read_transaction(find_path_to_UK, str(zipcode))
-            nodes = None
-            for record in records:
-                nodes = record['p'].nodes
-            if not nodes:
-                exit(f"ERROR! Found empty path... check zipcode {zipcode}")
-            # else:
-            #     nodes = [i['zipcode'] for i in nodes]
-            #     print(f"Found path: {nodes}")
+def get_statewide_negative_test_count(tx):
+    records = tx.run(
+        "MATCH(p1:Patient) "
+        "WHERE p1.patient_status_code = \"1\" or p1.patient_status_code = \"4\" "
+        "RETURN count(p1)")
 
-            
-def init_graph_database(driver, distance_df, hospital_df):
-    # Create the database
-    # - create nodes for zipcodes
-    # - add relationships (distance) between zipcodes
-    # - add hospital nodes
-    # - add relationships from zipcode (has_hospital) to hospitals
-    finished = []
-    distances = [1, 2, 4, 8, 16, 32]
-    with driver.session() as session:
-        print("Assigning zipcodes as nodes and creating relationships...")
-        for d in distances:
-            print(f"connecting regions with ~{d} mile distance")
-            
-            for i in trange(len(distance_df)):
-                row = distance_df.iloc[i]
-                zip1 = str(row['zip_from'])[:-2]
-                zip2 = str(row['zip_to'])[:-2]
-                distance = row['distance']
-                if (zip1, zip2) in finished or (zip2, zip1) in finished:
-                    # already processed this zipcode
-                    continue
-                if distance > d:
-                    # really defeats the purpose of a graph database otherwise
-                    continue
-                else:
-                    # since the sum of the previous distances is < the current
-                    # distance, we only want to add a path if it's necessary!
-                    # if some path exists already, it will be shorter than making
-                    # a new path at the current threshold
-
-                    # Search for path:
-                    records = session.read_transaction(find_path_zip2zip, zip1, zip2)
-                    path = None
-                    for record in records:
-                        path = record['p'].nodes
-                    if not path:
-                        session.write_transaction(add_zip, zip1)
-                        session.write_transaction(add_zip, zip2)
-                        session.write_transaction(add_zip_zip_rel, zip1, zip2, distance)
-
-                    finished.append((zip1, zip2))
+    return records
 
 
-                    
-        print("Assigning hostpitals as nodes and creating relationships...")
-        for idx, row in hospital_df.iterrows():
-            data = row.apply(str)
-            session.write_transaction(add_hospital, data)
-            session.write_transaction(add_zip_hospital_rel, data)
-                
+def set_t1_zips(tx):
+    tx.run("MATCH(p:Patient)-[:LIVES_IN]->(z:Zip) "
+           "WHERE (p.check_in_time <= timestamp()-15000 and p.check_in_time > timestamp()-30000) AND (p.patient_status_code = \"3\" or p.patient_status_code = \"5\" or p.patient_status_code = \"6\") "
+           "WITH z, count(p) as myc "
+           "SET z.t1 = myc "
+           "RETURN z")
 
-if __name__=='__main__':
-    # Run this file to build the initial graph
-    distance_df = pd.read_csv("database/data/kyzipdistance.csv")
-    hospital_df = pd.read_csv("database/data/hospitals.csv")
+def set_t2_zips(tx):
+    tx.run("MATCH(p:Patient)-[:LIVES_IN]->(z:Zip) "
+           "WHERE (p.check_in_time > timestamp()-15000) AND (p.patient_status_code = \"3\" or p.patient_status_code = \"5\" or p.patient_status_code = \"6\") "
+           "WITH z, count(p) as myc "
+           "SET z.t2 = myc "
+           "RETURN z")
+
+def set_alert_state(tx):
+    tx.run("MATCH(z:Zip) "
+           "WHERE ((2*z.t1) <= z.t2) AND  (z.t1 <> 0) "
+           "SET z.alert_status = 1 " 
+           "RETURN z")
+
+def unset_alert_state(tx):
+    tx.run("MATCH(z:Zip) "
+           "WHERE ((2*z.t1) > z.t2) OR (z.t1 = 0 AND z.t2 = 0) "
+           "SET z.alert_status = 0 "
+           "RETURN z")
+
+def get_alert_zips(tx):
+    records = tx.run("MATCH(z:Zip) "
+                     "WHERE z.alert_status = 1 "
+                     "RETURN z.zipcode")
+    return records
     
-    driver = GraphDatabase.driver(
-        cred['uri'],
-        auth=(
-            cred['username'],
-            cred['password'])
-    )
-    print("Building Graph Database...")
-
-    # Reset graph database
-    reset_graph(driver)    
     
-    # Initialize the database
-    init_graph_database(driver, distance_df, hospital_df)
+def get_alert_count(tx):
+    records = tx.run("MATCH(z:Zip) "
+                     "WHERE z.alert_status = 1 "
+                     "RETURN count(z)")
+    return records
 
-    # print any still-unconnected nodes
-    test_all_connected(driver, distance_df)
-    
-    driver.close()
