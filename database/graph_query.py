@@ -27,8 +27,7 @@ def delete_patient_hospital_rel(tx, data):
 def add_zip(tx, zip1):
     # check if zip1 and zip2 are in database
     tx.run("MERGE(z1:Zip {zipcode:$myzip1, " 
-           "alert_status:0}, "
-           "t1:0, t2:0) "
+           "alert_status:0, t1:0, t2:0}) "
            "RETURN z1",
            myzip1=zip1)
 

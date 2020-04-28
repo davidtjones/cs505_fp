@@ -2,7 +2,7 @@ from flask import Flask, json, request
 import pandas as pd
 import code
 import config
-from database.functional import *
+from functional import *
 
 app = Flask(__name__)
 

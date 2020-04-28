@@ -3,7 +3,7 @@ from neo4j import GraphDatabase
 from tqdm import tqdm, trange
 from config import neo4j_cred as cred
 import code
-from .graph_query import *
+from database.graph_query import *
 
 def fetch_patient(driver, mrn):
     data = pd.Series({"mrn": mrn})
@@ -147,7 +147,7 @@ def init_graph_database(driver, distance_df, hospital_df):
             for d in distances:
                 print(f"connecting regions with ~{d} mile distance")
                 
-                for i in trange(len(distance_df)):
+                for i in range(len(distance_df)):
                     row = distance_df.iloc[i]
                     zip1 = str(row['zip_from'])[:-2]
                     zip2 = str(row['zip_to'])[:-2]
@@ -158,22 +158,22 @@ def init_graph_database(driver, distance_df, hospital_df):
                     if distance > d:
                         # really defeats the purpose of a graph database otherwise
                         continue
-                else:
-                    # since the sum of the previous distances is < the current
-                    # distance, we only want to add a path if it's necessary!
-                    # if some path exists already, it will be shorter than making
-                    # a new path at the current threshold
+                    else:
+                        # since the sum of the previous distances is < the current
+                        # distance, we only want to add a path if it's necessary!
+                        # if some path exists already, it will be shorter than making
+                        # a new path at the current threshold
                     
-                    # Search for path:
-                    records = session.read_transaction(find_path_zip2zip, zip1, zip2)
-                    path = None
-                    for record in records:
-                        path = record['p'].nodes
-                    if not path:
-                        session.write_transaction(add_zip, zip1)
-                        session.write_transaction(add_zip, zip2)
-                        session.write_transaction(add_zip_zip_rel, zip1, zip2, distance)
-                            
+                        # Search for path:
+                        records = session.read_transaction(find_path_zip2zip, zip1, zip2)
+                        path = None
+                        for record in records:
+                            path = record['p'].nodes
+                        if not path:
+                            session.write_transaction(add_zip, zip1)
+                            session.write_transaction(add_zip, zip2)
+                            session.write_transaction(add_zip_zip_rel, zip1, zip2, distance)
+                            print(f"adding zips {zip1}, {zip2}")
                     finished.append((zip1, zip2))
                                    
             print("Assigning hostpitals as nodes and creating relationships...")
@@ -185,18 +185,16 @@ def init_graph_database(driver, distance_df, hospital_df):
 
 
 if __name__=='__main__':
-    test()
-
-    exit()
     # Run this file to build the initial graph
     distance_df = pd.read_csv("database/data/kyzipdistance.csv")
     hospital_df = pd.read_csv("database/data/hospitals.csv")
-    
+    code.interact(local=locals())
     driver = GraphDatabase.driver(
         cred['uri'],
         auth=(
             cred['username'],
-            cred['password'])
+            cred['password']),
+	encrypted=False
     )
     print("Building Graph Database...")
     
