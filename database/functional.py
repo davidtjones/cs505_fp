@@ -81,7 +81,14 @@ def get_alert_state(driver):
         results = [i for i in records]
         count = results[0]['count(z)']
         return count
-      
+
+def check_online(driver):
+    with driver.session() as session:
+        records = session.read_transaction(get_online)
+        results = [i for i in records]
+        status = "1" if len(results) > 0 else "0"
+        return status
+        
     
 def update_and_route_patient(driver, data):
     with driver.session() as session:
@@ -141,7 +148,7 @@ def init_graph_database(driver, distance_df, hospital_df):
         # - add hospital nodes
         # - add relationships from zipcode (has_hospital) to hospitals
         finished = []
-        distances = [1, 2, 4, 8, 16, 32]
+        distances = [1, 2, 4, 8, 16]
         with driver.session() as session:
             print("Assigning zipcodes as nodes and creating relationships...")
             for d in distances:
@@ -181,33 +188,6 @@ def init_graph_database(driver, distance_df, hospital_df):
                 data = row.apply(str)
                 session.write_transaction(add_hospital, data)
                 session.write_transaction(add_zip_hospital_rel, data)
-
-
-
-if __name__=='__main__':
-    # Run this file to build the initial graph
-    distance_df = pd.read_csv("database/data/kyzipdistance.csv")
-    hospital_df = pd.read_csv("database/data/hospitals.csv")
-    code.interact(local=locals())
-    driver = GraphDatabase.driver(
-        cred['uri'],
-        auth=(
-            cred['username'],
-            cred['password']),
-	encrypted=False
-    )
-    print("Building Graph Database...")
-    
-    # Reset graph database
-    reset_graph(driver)
-    
-    # Initialize the database
-    init_graph_database(driver, distance_df, hospital_df)
-    
-    # print any still-unconnected nodes
-    test_all_connected(driver, distance_df)
-    
-    driver.close()
         
                                 
                                 

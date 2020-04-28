@@ -2,7 +2,7 @@ from flask import Flask, json, request
 import pandas as pd
 import code
 import config
-from functional import *
+from database.functional import *
 
 app = Flask(__name__)
 
@@ -11,8 +11,10 @@ def get_driver():
         config.neo4j_cred['uri'],
         auth=(
             config.neo4j_cred['username'],
-            config.neo4j_cred['password'])
+            config.neo4j_cred['password']),
+        encrypted=False
     )
+    
     return driver
 
 @app.route('/api')
@@ -23,17 +25,23 @@ def hello_world():
 # API management functions
 @app.route('/api/getteam')
 def get_team():
+    driver = get_driver()
+    status = check_online(driver)
+    driver.close()
     info_json = {"team_name": "dtjo223",
                  "Team_members_sids":"10697704",
-                 "app_status_code": "1"}
+                 "app_status_code": status}
+    
     return json.dumps(info_json)
+
 
 @app.route('/api/reset')
 def reset():
     driver = get_driver()
     reset_patients(driver)
+    status = check_online(driver)
     driver.close()
-    info_json = {"reset_status_code":"1"}
+    info_json = {"reset_status_code":status}
     return json.dumps(info_json)
 
 
@@ -65,6 +73,7 @@ def get_testcount():
     
     return json.dumps(info_json)
 
+
 # Logical and Operational Functions
 @app.route('/api/of1', methods=['POST'])
 def of1():
@@ -92,7 +101,6 @@ def get_patient(mrn):
     return json.dumps(info_json)
 
 
-
 @app.route('/api/gethospital/<id>')
 def get_hospital_patient_numbers(id):
     driver = get_driver()
@@ -102,4 +110,3 @@ def get_hospital_patient_numbers(id):
                  "available_beds":str(free),
                  "zipcode":str(zipcode)}
     return json.dumps(info_json)
-    

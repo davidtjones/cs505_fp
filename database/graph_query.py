@@ -143,13 +143,6 @@ def add_patient_zip_rel(tx, data):
            mrn=data.mrn,
            myzip1=data.zip_code
            )
-
-def add_patient_hospital_rel(tx, data):
-    tx.run("MATCH(p1:Patient{mrn:$mrn}),(h1:Hospital{id:$myhid1}) "
-           "MERGE(p1)-[r:RECVS_CARE_AT]->(h1) "
-           "RETURN r",
-           mrn
-           )
                
 # Functions to test and build graph
 def find_path_to_UK(tx, zip1):
@@ -175,25 +168,29 @@ def find_path_zip2zip(tx, zip1, zip2):
 
 def add_patient_hospital_rel(tx, data):
     # when patient status code indicates that they need to report to a hospital
-    tx.run("MATCH (p1:Patient{mrn:$mrn})-[:LIVES_IN]-(:Zip)-[r:IS_NEIGHBOR*1..60]-(:Zip)-[:HAS_HOSPITAL]->(h1:Hospital) "
+    tx.run("MATCH path=(p1:Patient{mrn:$mrn})-[:LIVES_IN]-(:Zip)-[r:IS_NEIGHBOR*1..150]-(:Zip)-[:HAS_HOSPITAL]->(h1:Hospital) "
            "WHERE h1.free_beds <= h1.beds AND h1.free_beds > 0 "
-           "WITH p1, h1 ORDER BY length(r) LIMIT 1 "
-           "MERGE(p1)-[c:RECVS_CARE_AT]-(h1) "
+           "WITH p1, h1 ORDER BY length(path) LIMIT 1 "
+           "MERGE(p1)-[c:RECVS_CARE_AT]->(h1) "
            "SET h1.free_beds = h1.free_beds-1 "
-           "RETURN c",
+           "RETURN h1",
            mrn=data.mrn
            )
 
 
 def add_crit_patient_hospital_rel(tx, data):
     tx.run(
-        "MATCH (p1:Patient{first_name:$mrn})-[:LIVES_IN]-(:Zip)-[r:IS_NEIGHBOR*1..60]-(:Zip)-[:HAS_HOSPITAL]->(h1:Hospital) "
-        "WHERE h1.free_beds <= h1.beds AND h1.free_beds > 0 AND h1.trauma CONTAINS \"LEVEL I\" "
-        "WITH p1, h1 ORDER BY length(r) LIMIT 1 "
-        "MERGE(p1)-[c:RECVS_CARE_AT]-(h1) "
+        "MATCH path=(p1:Patient{mrn:$mrn})-"
+        "[:LIVES_IN]-(:Zip)-[r:IS_NEIGHBOR*1..150]-"
+        "(:Zip)-[:HAS_HOSPITAL]->(h1:Hospital) "
+        "WHERE h1.free_beds <= h1.beds AND "
+        "h1.free_beds > 0 AND h1.trauma CONTAINS \"LEVEL IV\" "
+        "WITH p1, h1 ORDER BY length(path) LIMIT 1 "
+        "MERGE(p1)-[c:RECVS_CARE_AT]->(h1) "
         "SET h1.free_beds = h1.free_beds-1 "
         "RETURN c",
-           mrn=data.mrn)
+        mrn=data.mrn
+    )
 
     
 def set_hospital_beds_max(tx):
@@ -257,5 +254,11 @@ def get_alert_count(tx):
     records = tx.run("MATCH(z:Zip) "
                      "WHERE z.alert_status = 1 "
                      "RETURN count(z)")
+    return records
+
+def get_online(tx):
+    records = tx.run(
+            "MATCH(h1:Hospital{zipcode:\"40536\"}) "
+            "RETURN h1")
     return records
 
