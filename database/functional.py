@@ -37,6 +37,7 @@ def reset_patients(driver):
     with driver.session() as session:
         session.write_transaction(detach_delete_patients)
         session.write_transaction(set_hospital_beds_max)
+        session.write_transaction(unset_zip_t1t2)
 
 def reset_graph(driver):
     # this is a hard reset and will require the graph to be rebuilt
@@ -58,9 +59,8 @@ def get_statewide_testing_counts(driver):
 
 def update_alert_zips(driver):
     with driver.session() as session:
-        session.write_transaction(set_t1_zips)
-        session.write_transaction(set_t2_zips)
-        session.write_transaction(unset_alert_state)
+        session.write_transaction(update_patient_t1t2_rel)
+        session.write_transaction(update_patient_t2_rel)
         session.write_transaction(set_alert_state)
 
 def get_alert_zips_list(driver):
@@ -72,8 +72,7 @@ def get_alert_zips_list(driver):
             ziplist.append(result['z.zipcode'])
 
         return ziplist
-            
-
+          
                                        
 def get_alert_state(driver):
     with driver.session() as session:
@@ -108,7 +107,6 @@ def update_and_route_patient(driver, data):
         if data.patient_status_code in ['0', '1', '2', '4']:
             session.write_transaction(delete_patient_hospital_rel, data)
 
-
         # if psc is 3, 5, route to any hospital with open beds
         if data.patient_status_code in ['3', '5']:
             session.write_transaction(add_patient_hospital_rel, data)
@@ -117,6 +115,9 @@ def update_and_route_patient(driver, data):
         if data.patient_status_code == '6':
             session.write_transaction(add_crit_patient_hospital_rel, data)
 
+        # if psc is 2, 5, or 6, mark patient with t1_sick for rt reporting
+        if data.patient_status_code in ['2', '5', '6']:
+            session.write_transaction(add_patient_t1_rel, data)
         
 def test_all_connected(driver, distance_df):
     # Test that there are no unconnected subgraphs in the database

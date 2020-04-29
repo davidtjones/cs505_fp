@@ -4,6 +4,12 @@ import sys
 from config import mq_cred
 import json
 import requests
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename="logs/subscriber.log"
+)
 
 # Set the connection parameters to connect to rabbit-server1 on port 5672
 # on the / virtual host using the username "guest" and password "guest"
@@ -22,13 +28,17 @@ parameters = pika.ConnectionParameters(hostname,
 def callback(ch, method, properties, body):
     URL = "http://localhost:5000/api/of1"
     json_body = json.loads(body)
-    payload = requests.post(URL, json=json.dumps(json_body))
-    # print(" [x] %r:%r" % (method.routing_key, body))
+    try:
+        payload = requests.post(URL, json=json.dumps(json_body))
+        #print(" [x] %r:%r" % (method.routing_key, body))
+        print(len(json_body), type(json_body))
+    except requests.exceptions.ConnectionError:
+        print(f" [!] No connection to {URL}!!")
+        
 
 
 while(True):
     try:
-        print("Connecting...")
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
         exchange_name = 'patient_data'
@@ -46,11 +56,7 @@ while(True):
 
         for binding_key in binding_keys:
             channel.queue_bind(
-                exchange=exchange_name, queue=queue_name, routing_key=binding_key)
-
-        print(' [*] Waiting for logs. To exit press CTRL+C')
-
-        
+                exchange=exchange_name, queue=queue_name, routing_key=binding_key)     
 
 
         channel.basic_consume(

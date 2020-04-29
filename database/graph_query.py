@@ -23,6 +23,11 @@ def delete_patient_hospital_rel(tx, data):
            "DELETE r",
            mrn=data.mrn)  
     
+def unset_zip_t1t2(tx):
+    tx.run("MATCH(z:Zip) "
+           "SET z.t1 = 0, z.t2 = 0, z.alert_status = 0 "
+           "RETURN count(z)")
+    
     
 def add_zip(tx, zip1):
     # check if zip1 and zip2 are in database
@@ -217,19 +222,34 @@ def get_statewide_negative_test_count(tx):
     return records
 
 
-def set_t1_zips(tx):
-    tx.run("MATCH(p:Patient)-[:LIVES_IN]->(z:Zip) "
-           "WHERE (p.check_in_time <= timestamp()-15000 and p.check_in_time > timestamp()-30000) AND (p.patient_status_code = \"3\" or p.patient_status_code = \"5\" or p.patient_status_code = \"6\") "
-           "WITH z, count(p) as myc "
-           "SET z.t1 = myc "
-           "RETURN z")
+def add_patient_t1_rel(tx, data):
+    tx.run(
+        "MATCH(p:Patient{mrn:$mrn})-[:LIVES_IN]->(z:Zip) "
+        "MERGE(p)-[:T1_SICK]->(z) "
+        "SET z.t1 = z.t1+1 "
+        "RETURN z ",
+        mrn = data.mrn)
 
-def set_t2_zips(tx):
-    tx.run("MATCH(p:Patient)-[:LIVES_IN]->(z:Zip) "
-           "WHERE (p.check_in_time > timestamp()-15000) AND (p.patient_status_code = \"3\" or p.patient_status_code = \"5\" or p.patient_status_code = \"6\") "
-           "WITH z, count(p) as myc "
-           "SET z.t2 = myc "
-           "RETURN z")
+
+def update_patient_t1t2_rel(tx):
+    tx.run(
+        "MATCH(p:Patient)-[r:T1_SICK]->(z:Zip) "
+        "WHERE p.check_in_time < timestamp() - 15000 "
+        "DELETE r "
+        "MERGE (p)-[r2:T2_SICK]->(z) "
+        "SET z.t2 = z.t2+1, z.t1 = z.t1-1 "
+        "RETURN z")
+
+
+def update_patient_t2_rel(tx):
+    tx.run(
+        "MATCH(p:Patient)-[r:T2_SICK]->(z:Zip) "
+        "WHERE p.check_in_time < timestamp() - 30000 "
+        "DELETE r "
+        "SET z.t2 = z.t2 -1 "
+        "RETURN z")
+           
+           
 
 def set_alert_state(tx):
     tx.run("MATCH(z:Zip) "
@@ -237,11 +257,6 @@ def set_alert_state(tx):
            "SET z.alert_status = 1 " 
            "RETURN z")
 
-def unset_alert_state(tx):
-    tx.run("MATCH(z:Zip) "
-           "WHERE ((2*z.t1) > z.t2) OR (z.t1 = 0 AND z.t2 = 0) "
-           "SET z.alert_status = 0 "
-           "RETURN z")
 
 def get_alert_zips(tx):
     records = tx.run("MATCH(z:Zip) "

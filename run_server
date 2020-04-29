@@ -1,3 +1,5 @@
+#!/bin/bash
 export flask FLASK_APP=webserver.py
-flask run --host=0.0.0.0 # > /dev/null &!
-# python Subscriber.py > /dev/null &!
+flask run --host=0.0.0.0
+
+

@@ -58,7 +58,7 @@ def get_ziplist():
 def get_alertlist():
     driver = get_driver()
     count = get_alert_state(driver)
-    state_status = 1 if count >= 15 else 0
+    state_status = 1 if count >= 5 else 0
     info_json = {"state_status": state_status}
     return json.dumps(info_json)
 
