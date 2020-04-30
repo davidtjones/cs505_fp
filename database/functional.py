@@ -62,6 +62,7 @@ def update_alert_zips(driver):
         session.write_transaction(update_patient_t1t2_rel)
         session.write_transaction(update_patient_t2_rel)
         session.write_transaction(set_alert_state)
+        session.write_transaction(unset_alert_state)
 
 def get_alert_zips_list(driver):
     with driver.session() as session:

@@ -207,7 +207,7 @@ def set_hospital_beds_max(tx):
 def get_statewide_positive_test_count(tx):
     records = tx.run(
         "MATCH(p1:Patient) "
-        "WHERE p1.patient_status_code = \"3\" or p1.patient_status_code = \"5\" or p1.patient_status_code = \"6\" "
+        "WHERE p1.patient_status_code = \"2\" or p1.patient_status_code = \"5\" or p1.patient_status_code = \"6\" "
         "RETURN count(p1)")
 
     return records
@@ -256,6 +256,11 @@ def set_alert_state(tx):
            "WHERE ((2*z.t1) <= z.t2) AND  (z.t1 <> 0) "
            "SET z.alert_status = 1 " 
            "RETURN z")
+
+def unset_alert_state(tx):
+    tx.run("MATCH(z:Zip) "
+           "WHERE((2*z.t1) > z.t2) "
+           "SET z.status_alert = 0")
 
 
 def get_alert_zips(tx):
