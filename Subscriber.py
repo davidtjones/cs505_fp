@@ -4,12 +4,6 @@ import sys
 from config import mq_cred
 import json
 import requests
-import logging
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    filename="logs/subscriber.log"
-)
 
 # Set the connection parameters to connect to rabbit-server1 on port 5672
 # on the / virtual host using the username "guest" and password "guest"
