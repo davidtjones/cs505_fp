@@ -10,7 +10,8 @@ def fetch_patient(driver, mrn):
     with driver.session() as session:
         records = session.read_transaction(get_patient_records, data)
         results = [i for i in records]
-        if results:
+        if len(results) > 0:
+
             patient_mrn = results[0]['p1.mrn']
             psc = results[0]['p1.patient_status_code']
             if psc in ['3', '5', '6']:
@@ -19,6 +20,9 @@ def fetch_patient(driver, mrn):
                 location_code = results[0]['h.id']
             else:
                 location_code = '0'
+        else:
+            patient_mrn = "None"
+            location_code = ""
 
         return patient_mrn, location_code
 

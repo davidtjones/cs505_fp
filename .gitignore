@@ -140,3 +140,4 @@ cython_debug/
 # User added
 config.py
 logs/*.log
+database/data/*.csv

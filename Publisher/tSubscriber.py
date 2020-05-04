@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 import pika
 import sys
@@ -9,16 +8,7 @@ import requests
 # Set the connection parameters to connect to rabbit-server1 on port 5672
 # on the / virtual host using the username "guest" and password "guest"
 
-username = mq_cred['username']
-password = mq_cred['password']
-hostname = mq_cred['hostname']
-virtualhost = mq_cred['virtualhost']
 
-credentials = pika.PlainCredentials(username, password)
-parameters = pika.ConnectionParameters(hostname,
-                                           5672,
-                                           virtualhost,
-                                           credentials)
 
 def callback(ch, method, properties, body):
     URL = "http://localhost:5000/api/of1"
@@ -28,18 +18,17 @@ def callback(ch, method, properties, body):
         json_body = [json_body]
     try:
         payload = requests.post(URL, json=json.dumps(json_body))
-        print(" [x] %r:%r" % (method.routing_key, json_body))
-        # print((json_body), type(json_body))
+        print(" [x] %r:%r" % (method.routing_key, body))
     except requests.exceptions.ConnectionError:
-        print(f" [!] No connection to {URL}!!")
-        
+        print(f" [!] No connection to {URL}")
 
 
 while(True):
     try:
-        connection = pika.BlockingConnection(parameters)
+        print("Connecting...")
+        connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
         channel = connection.channel()
-        exchange_name = 'patient_data'
+        exchange_name = 'patient_data2'
         channel.exchange_declare(exchange=exchange_name, exchange_type='topic')
 
         result = channel.queue_declare('', exclusive=True)
@@ -54,9 +43,13 @@ while(True):
 
         for binding_key in binding_keys:
             channel.queue_bind(
-                exchange=exchange_name, queue=queue_name, routing_key=binding_key)     
+                exchange=exchange_name, queue=queue_name, routing_key=binding_key)
 
         print(' [*] Waiting for logs. To exit press CTRL+C')
+
+        
+
+
         channel.basic_consume(
             queue=queue_name, on_message_callback=callback, auto_ack=True)
 

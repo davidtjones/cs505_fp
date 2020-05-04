@@ -78,14 +78,15 @@ def get_testcount():
 @app.route('/api/of1', methods=['POST'])
 def of1():
     s = json.loads(request.get_json())
+    
     driver = get_driver()
     for patient in s:
         patient_data = pd.Series(patient)
-        # print(patient_data)
+        print(patient_data)
         update_and_route_patient(driver, patient_data)
 
-    # update zips with status alert
-    update_alert_zips(driver)
+    # update zips with status alert - now being handled by ping.py
+    # update_alert_zips(driver)
     driver.close()
     return "1"
 

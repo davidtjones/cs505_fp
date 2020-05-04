@@ -173,14 +173,15 @@ def find_path_zip2zip(tx, zip1, zip2):
 
 def add_patient_hospital_rel(tx, data):
     # when patient status code indicates that they need to report to a hospital
-    tx.run("MATCH path=(p1:Patient{mrn:$mrn})-[:LIVES_IN]-(:Zip)-[r:IS_NEIGHBOR*1..150]-(:Zip)-[:HAS_HOSPITAL]->(h1:Hospital) "
-           "WHERE h1.free_beds <= h1.beds AND h1.free_beds > 0 "
-           "WITH p1, h1 ORDER BY length(path) LIMIT 1 "
-           "MERGE(p1)-[c:RECVS_CARE_AT]->(h1) "
-           "SET h1.free_beds = h1.free_beds-1 "
-           "RETURN h1",
-           mrn=data.mrn
-           )
+    tx.run(
+        "MATCH path=(p1:Patient{mrn:$mrn})-[:LIVES_IN]->(:Zip)-[:IS_NEIGHBOR*0..150]-(:Zip)-[:HAS_HOSPITAL]->(h1:Hospital) "
+        "WHERE h1.free_beds <= h1.beds AND h1.free_beds > 0 "
+        "WITH p1, h1 ORDER BY length(path) LIMIT 1 "
+        "MERGE(p1)-[c:RECVS_CARE_AT]->(h1) "
+        "SET h1.free_beds = h1.free_beds-1 "
+        "RETURN h1",
+        mrn=data.mrn
+    )
 
 
 def add_crit_patient_hospital_rel(tx, data):
@@ -253,14 +254,15 @@ def update_patient_t2_rel(tx):
 
 def set_alert_state(tx):
     tx.run("MATCH(z:Zip) "
-           "WHERE ((2*z.t1) <= z.t2) AND  (z.t1 <> 0) "
+           "WHERE ((2*z.t2) <= z.t1) AND  (z.t2 <> 0) "
            "SET z.alert_status = 1 " 
            "RETURN z")
 
 def unset_alert_state(tx):
     tx.run("MATCH(z:Zip) "
-           "WHERE((2*z.t1) > z.t2) "
-           "SET z.status_alert = 0")
+           "WHERE 2*z.t2 > z.t1 "
+           "SET z.alert_status = 0 "
+           "RETURN z")
 
 
 def get_alert_zips(tx):
