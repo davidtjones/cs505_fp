@@ -28,12 +28,11 @@ def callback(ch, method, properties, body):
         json_body = [json_body]
     try:
         payload = requests.post(URL, json=json.dumps(json_body))
-        print(" [x] %r:%r" % (method.routing_key, json_body))
+        print(" [x] %r:%r" % (method.routing_key, body))
         # print((json_body), type(json_body))
     except requests.exceptions.ConnectionError:
         print(f" [!] No connection to {URL}!!")
         
-
 
 while(True):
     try:
